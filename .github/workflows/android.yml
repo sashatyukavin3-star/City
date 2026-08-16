@@ -124,15 +124,65 @@ jobs:
             exit 1
           }
 
-      - name: Export APK
+      -       - name: Export APK
+        working-directory: ${{ env.PROJECT_DIR }}
+        shell: bash
+        run: |
+          set -uo pipefail
+
+          mkdir -p build
+
+          echo "===== GODOT VERSION ====="
+          godot --version
+
+          echo "===== EXPORT PRESETS ====="
+          cat export_presets.cfg
+
+          echo "===== EXPORT TEMPLATES ====="
+          ls -lah "$HOME/.local/share/godot/export_templates/4.4.1.stable/"
+
+          echo "===== ANDROID SDK ====="
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
+
+          echo "===== EXPORT ====="
+
+          godot --headless \
+            --path . \
+            --verbose \
+            --export-release "Android" \
+            build/CityForge.apk 2>&1 | tee export.log
+
+          EXIT_CODE=${PIPESTATUS[0]}
+
+          echo "===== EXPORT LOG ====="
+          cat export.log
+
+          if [ "$EXIT_CODE" -ne 0 ]; then
+            echo "::error::Godot export failed with exit code $EXIT_CODE"
+            exit "$EXIT_CODE"
+          fi
+
+      - name: Verify APK
         working-directory: ${{ env.PROJECT_DIR }}
         shell: bash
         run: |
           set -euo pipefail
 
-          mkdir -p build
+          if [ ! -s build/CityForge.apk ]; then
+            echo "::error::CityForge.apk was not created"
+            exit 1
+          fi
 
-          godot --headless             --path .             --export-release "Android"             build/CityForge.apk
+          ls -lh build/CityForge.apk
+          file build/CityForge.apk
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: cityforge-release-apk
+          path: ${{ env.PROJECT_DIR }}/build/CityForge.apk
+          if-no-files-found: error             --path .             --export-release "Android"             build/CityForge.apk
 
       - name: Verify APK
         working-directory: ${{ env.PROJECT_DIR }}
