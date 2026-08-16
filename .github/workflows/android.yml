@@ -1,0 +1,151 @@
+name: Build CityForge Android
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - master
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Install Godot 4.4.1
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          GODOT_VERSION="4.4.1-stable"
+          wget -q "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}/Godot_v4.4.1-stable_linux.x86_64.zip"             -O godot.zip
+          unzip -q godot.zip
+          chmod +x Godot_v4.4.1-stable_linux.x86_64
+          sudo mv Godot_v4.4.1-stable_linux.x86_64 /usr/local/bin/godot
+
+          godot --version
+
+      - name: Install Godot Android export templates
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          GODOT_VERSION="4.4.1-stable"
+          TEMPLATES_ROOT="$HOME/.local/share/godot/export_templates/4.4.1.stable"
+          TMP_DIR="$RUNNER_TEMP/godot_templates"
+
+          rm -rf "$TMP_DIR" "$TEMPLATES_ROOT"
+          mkdir -p "$TMP_DIR" "$TEMPLATES_ROOT"
+
+          wget -q "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}/Godot_v4.4.1-stable_export-templates.tpz"             -O "$TMP_DIR/templates.tpz"
+
+          # .tpz is a ZIP archive. Extract only the Android templates.
+          unzip -q "$TMP_DIR/templates.tpz" "templates/android_debug.apk" "templates/android_release.apk" -d "$TMP_DIR/extracted"
+
+          cp "$TMP_DIR/extracted/templates/android_debug.apk"              "$TEMPLATES_ROOT/android_debug.apk"
+          cp "$TMP_DIR/extracted/templates/android_release.apk"              "$TEMPLATES_ROOT/android_release.apk"
+
+          test -s "$TEMPLATES_ROOT/android_debug.apk"
+          test -s "$TEMPLATES_ROOT/android_release.apk"
+
+          echo "Installed templates:"
+          ls -lh "$TEMPLATES_ROOT"
+
+      - name: Install Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android packages
+        shell: bash
+        run: |
+          set -euo pipefail
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager "platform-tools"                      "platforms;android-35"                      "build-tools;35.0.0"
+
+      - name: Find and extract CityForge
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          mkdir -p cityforge
+          ZIP="$(find . -type f -name 'CityForge*.zip' -not -path './.git/*' | head -n 1)"
+
+          if [ -z "$ZIP" ]; then
+            echo "::error::CityForge ZIP not found"
+            exit 1
+          fi
+
+          echo "Using: $ZIP"
+          unzip -q "$ZIP" -d cityforge
+
+          PROJECT="$(find cityforge -name project.godot -type f -print -quit)"
+          if [ -z "$PROJECT" ]; then
+            echo "::error::project.godot not found inside ZIP"
+            find cityforge -maxdepth 5 -type f | sort | head -200
+            exit 1
+          fi
+
+          PROJECT_DIR="$(dirname "$PROJECT")"
+
+          test -f "$PROJECT_DIR/project.godot"
+          test -f "$PROJECT_DIR/export_presets.cfg"
+
+          echo "PROJECT=$PROJECT" >> "$GITHUB_ENV"
+          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
+
+          echo "Project: $PROJECT_DIR"
+
+      - name: Validate Godot project
+        working-directory: ${{ env.PROJECT_DIR }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          godot --headless --path . --editor --quit --verbose
+
+      - name: Verify Android preset
+        working-directory: ${{ env.PROJECT_DIR }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q 'platform="Android"' export_presets.cfg || {
+            echo "::error::Android export preset not found in export_presets.cfg"
+            sed -n '1,220p' export_presets.cfg
+            exit 1
+          }
+
+      - name: Export APK
+        working-directory: ${{ env.PROJECT_DIR }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          mkdir -p build
+
+          godot --headless             --path .             --export-release "Android"             build/CityForge.apk
+
+      - name: Verify APK
+        working-directory: ${{ env.PROJECT_DIR }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s build/CityForge.apk
+          file build/CityForge.apk
+          ls -lh build/CityForge.apk
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: cityforge-release-apk
+          path: ${{ env.PROJECT_DIR }}/build/CityForge.apk
+          if-no-files-found: error
