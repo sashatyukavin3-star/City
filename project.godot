@@ -1,0 +1,22 @@
+; Engine configuration file.
+; It's best edited using the editor UI and not directly,
+; since the parameters that go here are not all obvious.
+;
+; Format:
+;   [section]
+;   name=value
+
+config_version=5
+
+[application]
+
+config/name="CityForge"
+config/description="CityForge Android Game"
+config/version="1.0.0"
+run/main_scene="res://scenes/main.tscn"
+config/features=PackedStringArray("4.4", "Mobile")
+config/icon="res://icon.svg"
+
+[rendering]
+
+renderer/rendering_method="mobile"
