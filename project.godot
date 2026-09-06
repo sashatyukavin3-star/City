@@ -15,8 +15,11 @@ config/description="Free-form 3D city builder with curved, diagonal and circular
 config/version="0.6.0"
 run/main_scene="res://scenes/main.tscn"
 config/features=PackedStringArray("4.4", "GL Compatibility")
-config/icon="res://icon.svg"
+config/icon="res://icon.png"
 boot_splash/bg_color=Color(0.05, 0.082, 0.125, 1)
+boot_splash/image="res://splash.png"
+boot_splash/fullsize=false
+boot_splash/use_filter=true
 
 [display]
 

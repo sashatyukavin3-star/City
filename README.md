@@ -33,15 +33,26 @@ text files with no binary asset dependencies.
 | Switch tool       | Toolbar buttons          | `1` `2` `3` `4`               |
 | Cancel drawing    | Second finger down       | `Esc`                         |
 
+## Graphics
+
+The world is textured with a small set of 512px seamless textures generated for
+the project (asphalt roads with baked UVs, grass ground, water, and per-zone
+building facades). The app ships a custom raster icon (`icon.png`) and a boot
+splash (`splash.png`). Everything else — buildings, trees, cars, roads — is
+generated procedurally in code, so the APK stays small.
+
 ## Project layout
 
 ```
 project.godot          Godot project settings (GL Compatibility, landscape)
 export_presets.cfg     Android export preset (lightweight, no Gradle/keystore)
-icon.svg               App icon
+icon.png               App icon
+splash.png             Boot splash image
+textures/              Seamless world & facade textures (+ .import files)
 scenes/main.tscn       Main scene
 scripts/main.gd        All gameplay logic
 .github/workflows/     CI that builds build/CityForge.apk
+docs/preview.png       Promo/preview image
 ```
 
 ## Building the APK

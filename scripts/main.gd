@@ -75,9 +75,16 @@ var zone_bar: HBoxContainer
 # Shared material cache to avoid allocating thousands of materials.
 var _mat_cache: Dictionary = {}
 
+# Loaded textures (see _load_textures).
+var tex_asphalt: Texture2D
+var tex_grass: Texture2D
+var tex_water: Texture2D
+var tex_facades: Array[Texture2D] = []
+
 
 func _ready() -> void:
 	randomize()
+	_load_textures()
 	_build_environment()
 	_build_world()
 	_build_ui()
@@ -85,6 +92,27 @@ func _ready() -> void:
 		_spawn_demo_city()
 	_refresh_stats()
 	_refresh_tool_buttons()
+
+
+# --- Textures -----------------------------------------------------------------
+func _load_textures() -> void:
+	tex_asphalt = _load_tex("res://textures/asphalt.png")
+	tex_grass = _load_tex("res://textures/grass.png")
+	tex_water = _load_tex("res://textures/water.png")
+	for path: String in [
+		"res://textures/facade_residential.png",
+		"res://textures/facade_commercial.png",
+		"res://textures/facade_industrial.png",
+	]:
+		var t: Texture2D = _load_tex(path)
+		if t != null:
+			tex_facades.append(t)
+
+
+func _load_tex(path: String) -> Texture2D:
+	if ResourceLoader.exists(path):
+		return load(path) as Texture2D
+	return null
 
 
 # --- Environment & world ------------------------------------------------------
@@ -147,7 +175,7 @@ func _build_world() -> void:
 	plane.size = Vector2(WORLD_EXTENT * 2.4, WORLD_EXTENT * 2.4)
 	ground.mesh = plane
 	ground.position.y = -0.12
-	ground.material_override = _mat(Color("#26382f"))
+	ground.material_override = _textured_mat(tex_grass, Color("#3f6b4c"), 24.0)
 	world_root.add_child(ground)
 
 	_create_water(world_root)
@@ -160,7 +188,7 @@ func _create_water(parent: Node3D) -> void:
 	mesh.size = Vector2(70.0, 150.0)
 	water.mesh = mesh
 	water.position = Vector3(96.0, -0.04, -5.0)
-	var m: StandardMaterial3D = _mat(Color("#20546a"))
+	var m: StandardMaterial3D = _textured_mat(tex_water, Color("#20546a"), 4.0)
 	m.metallic = 0.2
 	m.roughness = 0.35
 	water.material_override = m
@@ -230,11 +258,14 @@ func _spawn_building_for_zone(zone: Dictionary) -> void:
 	var height: float = randf_range(6.0, 20.0) if type_idx != 2 else randf_range(5.0, 9.0)
 	var footprint: float = 6.4
 	var size: Vector3 = Vector3(footprint, height, footprint)
-	var node: Node3D = _spawn_building(pos, size, color)
+	var facade: Texture2D = null
+	if type_idx < tex_facades.size():
+		facade = tex_facades[type_idx]
+	var node: Node3D = _spawn_building(pos, size, color, facade)
 	zone["building"] = node
 
 
-func _spawn_building(pos: Vector3, size: Vector3, color: Color) -> Node3D:
+func _spawn_building(pos: Vector3, size: Vector3, color: Color, facade: Texture2D = null) -> Node3D:
 	var root: Node3D = Node3D.new()
 	root.position = pos
 	building_root.add_child(root)
@@ -244,7 +275,14 @@ func _spawn_building(pos: Vector3, size: Vector3, color: Color) -> Node3D:
 	box.size = size
 	body.mesh = box
 	body.position.y = size.y * 0.5
-	body.material_override = _mat(color)
+	if facade != null:
+		var fm: StandardMaterial3D = _textured_mat(facade, color, 1.0)
+		# Repeat the facade roughly once per floor vertically.
+		fm.uv1_scale = Vector3(1.0, maxf(1.0, round(size.y / 3.0)), 1.0)
+		fm.albedo_color = Color.WHITE
+		body.material_override = fm
+	else:
+		body.material_override = _mat(color)
 	root.add_child(body)
 
 	var roof: MeshInstance3D = MeshInstance3D.new()
@@ -255,15 +293,17 @@ func _spawn_building(pos: Vector3, size: Vector3, color: Color) -> Node3D:
 	roof.material_override = _mat(Color("#354452"))
 	root.add_child(roof)
 
-	var floor_count: int = maxi(1, int(size.y / 3.0))
-	for i: int in range(floor_count):
-		var band: MeshInstance3D = MeshInstance3D.new()
-		var bm: BoxMesh = BoxMesh.new()
-		bm.size = Vector3(size.x * 1.01, 0.10, size.z * 0.92)
-		band.mesh = bm
-		band.position.y = 1.7 + float(i) * 3.0
-		band.material_override = _mat(Color("#d7e1e5"))
-		root.add_child(band)
+	# Floor bands add detail only when there is no facade texture supplying it.
+	if facade == null:
+		var floor_count: int = maxi(1, int(size.y / 3.0))
+		for i: int in range(floor_count):
+			var band: MeshInstance3D = MeshInstance3D.new()
+			var bm: BoxMesh = BoxMesh.new()
+			bm.size = Vector3(size.x * 1.01, 0.10, size.z * 0.92)
+			band.mesh = bm
+			band.position.y = 1.7 + float(i) * 3.0
+			band.material_override = _mat(Color("#d7e1e5"))
+			root.add_child(band)
 
 	# Grow-in animation.
 	root.scale = Vector3(1.0, 0.02, 1.0)
@@ -312,7 +352,7 @@ func _create_road(points: Array[Vector3], closed: bool = false) -> void:
 	var road_mesh_instance: MeshInstance3D = MeshInstance3D.new()
 	road_mesh_instance.name = "Road"
 	road_mesh_instance.mesh = _road_mesh(curve)
-	road_mesh_instance.material_override = _mat(Color("#252b31"))
+	road_mesh_instance.material_override = _textured_mat(tex_asphalt, Color("#3a3f45"), 1.0)
 	road_root.add_child(road_mesh_instance)
 
 	var lane: MeshInstance3D = MeshInstance3D.new()
@@ -333,9 +373,13 @@ func _road_mesh(curve: Curve3D) -> ArrayMesh:
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	var length: float = curve.get_baked_length()
 	var count: int = maxi(2, int(length / SAMPLE_STEP))
+	# V runs along the road length so the asphalt repeats naturally; U spans the
+	# road width. Scale V by road width to keep the texture roughly square.
 	for i: int in range(count):
 		var d0: float = length * float(i) / float(count)
 		var d1: float = length * float(i + 1) / float(count)
+		var v0: float = d0 / ROAD_WIDTH
+		var v1: float = d1 / ROAD_WIDTH
 		var p0: Vector3 = curve.sample_baked(d0)
 		var p1: Vector3 = curve.sample_baked(d1)
 		var dir: Vector3 = (p1 - p0).normalized()
@@ -344,8 +388,12 @@ func _road_mesh(curve: Curve3D) -> ArrayMesh:
 		var b: Vector3 = p0 - side * ROAD_WIDTH * 0.5
 		var c: Vector3 = p1 + side * ROAD_WIDTH * 0.5
 		var d: Vector3 = p1 - side * ROAD_WIDTH * 0.5
-		st.add_vertex(a); st.add_vertex(b); st.add_vertex(c)
-		st.add_vertex(b); st.add_vertex(d); st.add_vertex(c)
+		st.set_uv(Vector2(0.0, v0)); st.add_vertex(a)
+		st.set_uv(Vector2(1.0, v0)); st.add_vertex(b)
+		st.set_uv(Vector2(0.0, v1)); st.add_vertex(c)
+		st.set_uv(Vector2(1.0, v0)); st.add_vertex(b)
+		st.set_uv(Vector2(1.0, v1)); st.add_vertex(d)
+		st.set_uv(Vector2(0.0, v1)); st.add_vertex(c)
 	st.generate_normals()
 	return st.commit()
 
@@ -938,6 +986,20 @@ func _mat(color: Color, roughness: float = 0.9) -> StandardMaterial3D:
 	if color.a < 1.0:
 		material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	_mat_cache[key] = material
+	return material
+
+
+func _textured_mat(tex: Texture2D, fallback: Color, uv_scale: float = 1.0) -> StandardMaterial3D:
+	# Textured materials are unique instances (each may have a different UV
+	# scale), so they are intentionally not cached.
+	var material: StandardMaterial3D = StandardMaterial3D.new()
+	if tex != null:
+		material.albedo_texture = tex
+		material.albedo_color = Color.WHITE
+		material.uv1_scale = Vector3(uv_scale, uv_scale, 1.0)
+	else:
+		material.albedo_color = fallback
+	material.roughness = 0.9
 	return material
 
 
