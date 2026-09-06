@@ -11,12 +11,31 @@ config_version=5
 [application]
 
 config/name="CityForge"
-config/description="CityForge Android Game"
-config/version="1.0.0"
+config/description="Free-form 3D city builder with curved, diagonal and circular roads, zones and traffic."
+config/version="0.6.0"
 run/main_scene="res://scenes/main.tscn"
-config/features=PackedStringArray("4.4", "Mobile")
+config/features=PackedStringArray("4.4", "GL Compatibility")
 config/icon="res://icon.svg"
+boot_splash/bg_color=Color(0.05, 0.082, 0.125, 1)
+
+[display]
+
+window/size/viewport_width=1280
+window/size/viewport_height=720
+window/handheld/orientation="landscape"
+window/stretch/mode="canvas_items"
+window/stretch/aspect="expand"
 
 [rendering]
 
-renderer/rendering_method="mobile"
+renderer/rendering_method="gl_compatibility"
+renderer/rendering_method.mobile="gl_compatibility"
+textures/default_filters/use_nearest_mipmap_filter=false
+environment/defaults/default_clear_color=Color(0.05, 0.082, 0.125, 1)
+
+[input]
+
+tool_road={
+"deadzone": 0.5,
+"events": [Object(InputEventKey,"resource_local_to_scene":false,"resource_name":"","device":-1,"window_id":0,"alt_pressed":false,"shift_pressed":false,"ctrl_pressed":false,"meta_pressed":false,"pressed":false,"keycode":0,"physical_keycode":49,"key_label":0,"unicode":49,"location":0,"echo":false,"script":null)]
+}
