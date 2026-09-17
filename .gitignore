@@ -1,0 +1,19 @@
+# Godot 4+ specific ignores
+.godot/
+.import/
+
+# Exported / build artifacts
+build/
+export/
+*.apk
+*.aab
+*.pck
+*.zip
+
+# OS / editor junk
+.DS_Store
+Thumbs.db
+*.swp
+*~
+.idea/
+.vscode/

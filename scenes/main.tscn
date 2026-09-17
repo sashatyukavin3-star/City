@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://cityforgemain"]
+
+[ext_resource type="Script" path="res://scripts/main.gd" id="1"]
+
+[node name="CityForge" type="Node3D"]
+script = ExtResource("1")
